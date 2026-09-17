@@ -1222,7 +1222,12 @@ function applyStyleToLayer(id) {
       layer.getTooltip()._buildLabelText = data.businesses[0].title;
     }
     labeledLayers.add(layer);
-    fitLabelToLayer(layer);
+    if (map.getZoom() < MIN_LABEL_ZOOM) {
+      layer.closeTooltip();
+    } else {
+      layer.openTooltip();
+      fitLabelToLayer(layer);
+    }
   } else {
     layer.unbindTooltip();
     labeledLayers.delete(layer);
@@ -1231,6 +1236,7 @@ function applyStyleToLayer(id) {
 
 // Підганяємо ширину/розмір шрифту підпису під реальний розмір будівлі на екрані
 const labeledLayers = new Set();
+const MIN_LABEL_ZOOM = 17; // нижче цього масштабу назви приховуються, щоб не заважали
 
 function fitLabelToLayer(layer) {
   const tooltip = layer.getTooltip && layer.getTooltip();
@@ -1251,7 +1257,15 @@ function fitLabelToLayer(layer) {
 }
 
 function refreshAllLabelSizes() {
-  labeledLayers.forEach(fitLabelToLayer);
+  const zoom = map.getZoom();
+  labeledLayers.forEach(layer => {
+    if (zoom < MIN_LABEL_ZOOM) {
+      layer.closeTooltip();
+    } else {
+      layer.openTooltip();
+      fitLabelToLayer(layer);
+    }
+  });
 }
 
 map.on('zoomend moveend', refreshAllLabelSizes);
