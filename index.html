@@ -532,7 +532,7 @@ function buildingLabel(tags) {
 }
 
 function blankBusiness() {
-  return { title: '', edrpou: '', owner: '', category: '', note: '', documents: [], showLabel: false };
+  return { title: '', edrpou: '', owner: '', phone: '', category: '', note: '', documents: [], showLabel: false };
 }
 
 // Підтримка старого формату запису (до появи кількох підприємств в одній будівлі)
@@ -823,6 +823,12 @@ function renderBusinessEditCard(biz, index, businessesLocal, holder, expandedRef
     edrpouInput.value = biz.edrpou || '';
     edrpouInput.oninput = () => { biz.edrpou = edrpouInput.value; };
 
+    const phoneInput = document.createElement('input');
+    phoneInput.type = 'tel';
+    phoneInput.placeholder = 'Номер телефону';
+    phoneInput.value = biz.phone || '';
+    phoneInput.oninput = () => { biz.phone = phoneInput.value; };
+
     const ownerInput = document.createElement('input');
     ownerInput.placeholder = 'Власник / орендар';
     ownerInput.value = biz.owner || '';
@@ -848,6 +854,7 @@ function renderBusinessEditCard(biz, index, businessesLocal, holder, expandedRef
     if (showLabelRow) body.appendChild(showLabelRow);
     body.appendChild(edrpouInput);
     body.appendChild(ownerInput);
+    body.appendChild(phoneInput);
     body.appendChild(noteInput);
     body.appendChild(docsHolder);
     card.appendChild(body);
@@ -1018,6 +1025,7 @@ function buildEditForm(id, tags, layer) {
         title: (b.title || '').trim() || 'Без назви',
         edrpou: (b.edrpou || '').trim(),
         owner: (b.owner || '').trim(),
+        phone: (b.phone || '').trim(),
         category: b.category || '',
         note: (b.note || '').trim(),
         documents: b.documents || [],
@@ -1131,6 +1139,16 @@ function buildViewPopup(id, tags, layer) {
       owner.className = 'popup-owner';
       owner.textContent = '👤 ' + biz.owner;
       details.appendChild(owner);
+    }
+    if (biz.phone) {
+      const phone = document.createElement('div');
+      phone.className = 'popup-owner';
+      phone.appendChild(document.createTextNode('📞 '));
+      const a = document.createElement('a');
+      a.textContent = biz.phone;
+      a.href = 'tel:' + biz.phone.replace(/[^\d+]/g, '');
+      phone.appendChild(a);
+      details.appendChild(phone);
     }
     if (biz.edrpou) {
       const edrpou = document.createElement('div');
@@ -1392,7 +1410,7 @@ function findMatchingIds(q) {
   Object.keys(notesData).forEach(id => {
     const d = notesData[id];
     const bizText = (d.businesses || []).map(b =>
-      [(b.title||''), (b.note||''), (b.owner||''), (b.category||''), (b.edrpou||'')].join(' ')
+      [(b.title||''), (b.note||''), (b.owner||''), (b.phone||''), (b.category||''), (b.edrpou||'')].join(' ')
     ).join(' ');
     const haystack = [bizText, (d.address||''), (d.cadastral||'')].join(' ').toLowerCase();
     if (haystack.includes(q)) found.push(id);
