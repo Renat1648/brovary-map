@@ -242,6 +242,11 @@
   #loginSubmit { background: #bfdbfe; color: #1e3a8a; font-weight: 600; }
   #loginCancel { background: #e2e8f0; color: #475569; }
   #loginError { color: #b91c1c; font-size: 12.5px; min-height: 16px; margin-bottom: 8px; }
+  .biz-tabs { display: flex; gap: 6px; margin: 4px 0 10px; }
+  .biz-tab { flex: 1; padding: 7px 8px; border: none; border-radius: 12px; background: #e8edf3; color: #475569; font-size: 12.5px; cursor: pointer; }
+  .biz-tab.active { background: #bfdbfe; color: #1e3a8a; font-weight: 600; }
+  .coord-pin { width: 26px; height: 26px; margin: -13px 0 0 -13px; border-radius: 50%; border: 3px solid #dc2626; background: rgba(255,255,255,0.55); box-shadow: 0 0 0 2px #fff, 0 2px 8px rgba(0,0,0,0.35); position: relative; }
+  .coord-pin::after { content: ''; position: absolute; left: 50%; top: 50%; width: 8px; height: 8px; margin: -4px 0 0 -4px; border-radius: 50%; background: #dc2626; }
 </style>
 </head>
 <body>
@@ -645,6 +650,36 @@ function fileToDataUrl(file) {
   });
 }
 
+const bizTabState = new WeakMap();
+function makeTabs(key, labels, panels, onSwitch) {
+  const wrap = document.createElement('div');
+  const bar = document.createElement('div');
+  bar.className = 'biz-tabs';
+  const btns = [];
+  const show = (n) => {
+    bizTabState.set(key, n);
+    btns.forEach((b, k) => b.classList.toggle('active', k === n));
+    panels.forEach((pn, k) => { pn.style.display = k === n ? '' : 'none'; });
+    if (onSwitch) onSwitch();
+  };
+  labels.forEach((t, k) => {
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.className = 'biz-tab';
+    b.textContent = t;
+    b.onclick = (e) => { e.preventDefault(); e.stopPropagation(); show(k); };
+    btns.push(b);
+    bar.appendChild(b);
+  });
+  wrap.appendChild(bar);
+  panels.forEach(pn => wrap.appendChild(pn));
+  const start = bizTabState.get(key) || 0;
+  btns.forEach((b, k) => b.classList.toggle('active', k === start));
+  panels.forEach((pn, k) => { pn.style.display = k === start ? '' : 'none'; });
+  wrap.setLabel = (k, t) => { btns[k].textContent = t; };
+  return wrap;
+}
+
 function buildDocsSection(docs, onChange) {
   const section = document.createElement('div');
   const list = document.createElement('div');
@@ -840,23 +875,26 @@ function renderBusinessEditCard(biz, index, businessesLocal, holder, expandedRef
     noteInput.oninput = () => { biz.note = noteInput.value; };
 
     const docsHolder = document.createElement('div');
+    let tabsEl = null;
+    const docsTabLabel = () => '📎 Фото / документи' + (biz.documents && biz.documents.length ? ' (' + biz.documents.length + ')' : '');
     function renderDocs() {
       docsHolder.innerHTML = '';
-      const docsLabel = document.createElement('label');
-      docsLabel.textContent = 'Документи / фото';
-      docsHolder.appendChild(docsLabel);
       docsHolder.appendChild(buildDocsSection(biz.documents, () => { renderDocs(); refreshPopup(layer); }));
+      if (tabsEl) tabsEl.setLabel(1, docsTabLabel());
     }
     renderDocs();
 
-    body.appendChild(catSelect);
-    body.appendChild(titleInput);
-    if (showLabelRow) body.appendChild(showLabelRow);
-    body.appendChild(edrpouInput);
-    body.appendChild(ownerInput);
-    body.appendChild(phoneInput);
-    body.appendChild(noteInput);
-    body.appendChild(docsHolder);
+    const dataPanel = document.createElement('div');
+    dataPanel.appendChild(catSelect);
+    dataPanel.appendChild(titleInput);
+    if (showLabelRow) dataPanel.appendChild(showLabelRow);
+    dataPanel.appendChild(edrpouInput);
+    dataPanel.appendChild(ownerInput);
+    dataPanel.appendChild(phoneInput);
+    dataPanel.appendChild(noteInput);
+
+    tabsEl = makeTabs(biz, ['📋 Дані', docsTabLabel()], [dataPanel, docsHolder], () => refreshPopup(layer));
+    body.appendChild(tabsEl);
     card.appendChild(body);
   }
 
@@ -1121,24 +1159,25 @@ function buildViewPopup(id, tags, layer) {
       wrap.appendChild(header);
     }
 
+    const infoPanel = document.createElement('div');
     if (biz.category) {
       const badge = document.createElement('div');
       badge.className = 'popup-badge';
       badge.style.background = CATEGORY_COLORS[biz.category] || CATEGORY_COLORS['Інше'];
       badge.textContent = biz.category;
-      details.appendChild(badge);
+      infoPanel.appendChild(badge);
     }
     if (!multiple) {
       const title = document.createElement('div');
       title.className = 'popup-title';
       title.textContent = biz.title;
-      details.appendChild(title);
+      infoPanel.appendChild(title);
     }
     if (biz.owner) {
       const owner = document.createElement('div');
       owner.className = 'popup-owner';
       owner.textContent = '👤 ' + biz.owner;
-      details.appendChild(owner);
+      infoPanel.appendChild(owner);
     }
     if (biz.phone) {
       const phone = document.createElement('div');
@@ -1148,20 +1187,28 @@ function buildViewPopup(id, tags, layer) {
       a.textContent = biz.phone;
       a.href = 'tel:' + biz.phone.replace(/[^\d+]/g, '');
       phone.appendChild(a);
-      details.appendChild(phone);
+      infoPanel.appendChild(phone);
     }
     if (biz.edrpou) {
       const edrpou = document.createElement('div');
       edrpou.className = 'popup-owner';
       edrpou.textContent = 'ЄДРПОУ: ' + biz.edrpou;
-      details.appendChild(edrpou);
+      infoPanel.appendChild(edrpou);
     }
     const note = document.createElement('div');
     note.className = 'popup-note';
     note.textContent = biz.note || '(без опису)';
-    details.appendChild(note);
+    infoPanel.appendChild(note);
 
-    (biz.documents || []).forEach(doc => details.appendChild(renderDocItem(doc, null)));
+
+    const viewDocs = biz.documents || [];
+    if (viewDocs.length) {
+      const docsPanel = document.createElement('div');
+      viewDocs.forEach(doc => docsPanel.appendChild(renderDocItem(doc, null)));
+      details.appendChild(makeTabs(biz, ['📋 Дані', '📎 Фото / документи (' + viewDocs.length + ')'], [infoPanel, docsPanel], () => refreshPopup(layer)));
+    } else {
+      details.appendChild(infoPanel);
+    }
 
     wrap.appendChild(details);
     container.appendChild(wrap);
@@ -1476,6 +1523,7 @@ function showSuggestions(ids) {
 }
 
 let lastFoundIds = [];
+let coordMarker = null;
 searchInput.addEventListener('input', () => {
   const raw = searchInput.value.trim();
   const q = raw.toLowerCase();
@@ -1483,12 +1531,33 @@ searchInput.addEventListener('input', () => {
   lastFoundIds = [];
   hideSuggestions();
 
+  if (coordMarker) { map.removeLayer(coordMarker); coordMarker = null; }
+
   // Пошук за координатами: "широта,довгота"
   const coordMatch = raw.match(/^(-?\d+(?:\.\d+)?)\s*,\s*(-?\d+(?:\.\d+)?)$/);
   if (coordMatch) {
     const lat = parseFloat(coordMatch[1]), lon = parseFloat(coordMatch[2]);
-    map.setView([lat, lon], 18);
-    statusEl.textContent = `Перехід до координат: ${lat.toFixed(5)}, ${lon.toFixed(5)}`;
+    map.setView([lat, lon], 19);
+    coordMarker = L.marker([lat, lon], {
+      icon: L.divIcon({ className: '', html: '<div class="coord-pin"></div>', iconSize: [0, 0] }),
+      interactive: false, keyboard: false, zIndexOffset: 1000
+    }).addTo(map);
+    let hitId = null;
+    for (const bid in buildingLayers) {
+      const ly = buildingLayers[bid];
+      if (!ly.getBounds().contains([lat, lon])) continue;
+      const ring = ly.getLatLngs()[0].map(ll => [ll.lat, ll.lng]);
+      if (pointInPolygon(lat, lon, ring)) { hitId = bid; break; }
+    }
+    if (hitId) {
+      buildingLayers[hitId].setStyle(HIGHLIGHT_STYLE);
+      lastFoundIds = [hitId];
+      const t = buildingTags[hitId] || {};
+      const addr = [t['addr:street'], t['addr:housenumber']].filter(Boolean).join(', ');
+      statusEl.textContent = `📍 ${lat.toFixed(5)}, ${lon.toFixed(5)} — будівля: ${addr || hitId}`;
+    } else {
+      statusEl.textContent = `📍 ${lat.toFixed(5)}, ${lon.toFixed(5)} — точка поза контурами будівель`;
+    }
     return;
   }
 
