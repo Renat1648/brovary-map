@@ -248,6 +248,13 @@
   .biz-tab.active { background: #bfdbfe; color: #1e3a8a; font-weight: 600; }
   .coord-pin { width: 26px; height: 26px; margin: -13px 0 0 -13px; border-radius: 50%; border: 3px solid #dc2626; background: rgba(255,255,255,0.55); box-shadow: 0 0 0 2px #fff, 0 2px 8px rgba(0,0,0,0.35); position: relative; }
   .coord-pin::after { content: ''; position: absolute; left: 50%; top: 50%; width: 8px; height: 8px; margin: -4px 0 0 -4px; border-radius: 50%; background: #dc2626; }
+  .ent-panel { position: fixed; left: 12px; top: 70px; z-index: 1400; width: 235px; max-height: calc(100vh - 170px); display: none; flex-direction: column; background: rgba(248,250,252,0.97); border-radius: 18px; box-shadow: 0 10px 30px rgba(100,116,139,0.25); overflow: hidden; }
+  .ent-head { display: flex; align-items: center; justify-content: space-between; padding: 10px 12px; font-size: 13px; font-weight: 700; color: #1e293b; cursor: pointer; }
+  .ent-list { overflow-y: auto; padding: 0 8px 6px; }
+  .ent-row { display: block; width: 100%; text-align: left; border: none; background: #eef2f7; border-radius: 12px; padding: 8px 10px; margin-bottom: 5px; cursor: pointer; font-size: 12.5px; color: #1e293b; }
+  .ent-row:hover { background: #dbeafe; }
+  .ent-row small { display: block; color: #64748b; font-size: 11px; margin-top: 2px; }
+  .ent-del { margin: 2px 8px 8px; padding: 7px; border: none; border-radius: 12px; background: #fee2e2; color: #b91c1c; font-size: 12px; cursor: pointer; }
 </style>
 </head>
 <body>
@@ -297,6 +304,14 @@
     </div>
   </form>
 </div>
+
+<div class="ent-panel" id="entPanel">
+  <div class="ent-head" id="entHead"><span id="entTitle">Підприємства</span><span id="entChev">▾</span></div>
+  <div class="ent-list" id="entList"></div>
+  <button type="button" class="ent-del" id="entDel">🗑 Видалити таблицю</button>
+</div>
+
+<button id="importBtn" type="button" style="display:none;position:fixed;left:12px;bottom:48px;z-index:1500;padding:10px 14px;border:none;border-radius:14px;background:#bfdbfe;color:#1e3a8a;font-weight:600;font-size:13px;cursor:pointer;box-shadow:0 8px 24px rgba(100,116,139,0.25);">⬇ Внести підприємства</button>
 
 <div class="status" id="status">Ініціалізація…</div>
 
@@ -1253,6 +1268,38 @@ function persistLocal() {
   try { localStorage.setItem(STORAGE_KEY, JSON.stringify(notesData)); } catch (e) { console.error(e); }
 }
 
+const IMPORT_ITEMS = [{"id": "way/1182694210", "address": "вул. Олега Онікієнка, 77-а", "title": "ТОВ \"Інтерметалпласт\"", "edrpou": "33583910"}, {"id": "way/1009077628", "address": "вул. Січових Стрільців, 1", "title": "ТзДВ \"БРОВАРСЬКА АВТОБАЗА № 2\"", "edrpou": "01268360"}, {"id": "way/304520247", "address": "вул. Броварської Сотні, 5", "title": "ТОВ \"Полімер-Колор\"", "edrpou": "24221600"}, {"id": "way/305935839", "address": "вул. Виробнича, 2", "title": "ПП «КАІ-Сервіс»", "edrpou": "31510442"}, {"id": "way/623951746", "address": "вул. Анатолія Луценка, 26", "title": "ТОВ МЕБЛЕВА ФАБРИКА \"МЕБЛІ АРТ\"", "edrpou": "46200272"}, {"id": "way/205335773", "address": "вул. Броварської Сотні, 3", "title": "ТОВ \"І-ЛАЙТ\"", "edrpou": "32128715", "category": "Склад", "note": "Склад ≈1000 м²"}, {"id": "way/223049137", "address": "вул. Січових Стрільців, 8", "title": "ТОВ \"ХІМЛОГІСТИКА\"", "edrpou": "36087201", "category": "Склад", "note": "Склад ≈55 000 м²"}, {"id": "way/623951731", "address": "вул. Анатолія Луценка", "title": "ТОВ «НВП Атлон Авіа»", "edrpou": "39246402"}];
+
+function pendingImportItems() {
+  return IMPORT_ITEMS.filter(it => {
+    const n = notesData[it.id];
+    return !(n && n.businesses && n.businesses.some(b => b.title));
+  });
+}
+function updateImportBtn() {
+  const btn = document.getElementById('importBtn');
+  if (!btn) return;
+  const n = pendingImportItems().length;
+  const allowed = !cloudEnabled || !!currentUser;
+  btn.style.display = (n && allowed) ? 'block' : 'none';
+  btn.textContent = '⬇ Внести підприємства (' + n + ')';
+  renderEntPanel();
+}
+async function runImport() {
+  if (!requireAuth()) return;
+  const btn = document.getElementById('importBtn');
+  btn.disabled = true;
+  let done = 0;
+  for (const it of pendingImportItems()) {
+    const data = { address: it.address, cadastral: '', businesses: [Object.assign(blankBusiness(), { title: it.title, edrpou: it.edrpou, category: it.category || '', note: it.note || '' })] };
+    if (await setNote(it.id, data) !== false) done++;
+    applyStyleToLayer(it.id);
+  }
+  btn.disabled = false;
+  updateImportBtn();
+  alert('Внесено підприємств: ' + done);
+}
+
 let currentUser = null;
 function requireAuth() {
   if (!cloudEnabled || currentUser) return true;
@@ -1737,6 +1784,48 @@ document.addEventListener('click', (e) => {
   }
 });
 
+document.getElementById('importBtn').addEventListener('click', runImport);
+
+// ---- Бічна таблиця підприємств ----
+const ENT_FLAG = 'brovary-ent-panel-removed';
+let entRemoved = false;
+try { entRemoved = localStorage.getItem(ENT_FLAG) === '1'; } catch (e) {}
+let entCollapsed = false;
+
+function renderEntPanel() {
+  const panel = document.getElementById('entPanel');
+  if (!panel) return;
+  const allowed = !entRemoved && (!cloudEnabled || !!currentUser);
+  panel.style.display = allowed ? 'flex' : 'none';
+  if (!allowed) return;
+  const list = document.getElementById('entList');
+  list.innerHTML = '';
+  IMPORT_ITEMS.forEach(it => {
+    const n = notesData[it.id];
+    const biz = n && n.businesses && n.businesses[0];
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.className = 'ent-row';
+    const done = biz && biz.phone ? ' 📞' : '';
+    b.textContent = ((biz && biz.title) || it.title) + done;
+    const sm = document.createElement('small');
+    sm.textContent = (n && n.address) || it.address;
+    b.appendChild(sm);
+    b.onclick = () => jumpToBuilding(it.id);
+    list.appendChild(b);
+  });
+  list.style.display = entCollapsed ? 'none' : '';
+  document.getElementById('entDel').style.display = entCollapsed ? 'none' : '';
+  document.getElementById('entChev').textContent = entCollapsed ? '▸' : '▾';
+}
+document.getElementById('entHead').addEventListener('click', () => { entCollapsed = !entCollapsed; renderEntPanel(); });
+document.getElementById('entDel').addEventListener('click', () => {
+  if (!confirm('Видалити таблицю підприємств зліва? Самі записи на карті залишаться.')) return;
+  entRemoved = true;
+  try { localStorage.setItem(ENT_FLAG, '1'); } catch (e) {}
+  renderEntPanel();
+});
+
 // ---- Авторизація ----
 const loginOverlay = document.getElementById('loginOverlay');
 function openLogin() {
@@ -1779,6 +1868,7 @@ function startListening() {
       });
       notesData = converted;
       applyNotesToMap();
+      updateImportBtn();
     });
 }
 function stopListening() {
@@ -1806,6 +1896,7 @@ function initCloud() {
       b.textContent = user ? '🔓' : '🔒';
       b.classList.toggle('auth-in', !!user);
       b.title = user ? 'Ви увійшли: ' + user.email + ' (натисніть, щоб вийти)' : 'Вхід';
+      updateImportBtn();
       if (user) { closeLogin(); startListening(); }
       else { stopListening(); openLogin(); }
     });
